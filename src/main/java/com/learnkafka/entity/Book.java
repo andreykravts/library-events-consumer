@@ -1,4 +1,4 @@
-package com.bnhp.entity;
+package com.learnkafka.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
