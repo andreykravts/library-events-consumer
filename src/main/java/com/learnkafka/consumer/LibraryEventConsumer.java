@@ -14,7 +14,7 @@ public class LibraryEventConsumer {
     @Autowired
     private LibraryEventsService libraryEventsService;
     @KafkaListener(topics = {"library-events"})
-    public void onMessage(ConsumerRecord<Integer,String> consumerRecord) throws JsonProcessingException {
+    public void onMessage(ConsumerRecord<Integer,String> consumerRecord) throws JsonProcessingException, IllegalAccessException {
         log.info("Consumer Record : {} ",consumerRecord);
         libraryEventsService.processLibraryEvent(consumerRecord);
     }

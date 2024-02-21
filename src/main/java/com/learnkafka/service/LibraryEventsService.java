@@ -9,6 +9,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 @Slf4j
 public class LibraryEventsService {
@@ -16,7 +18,7 @@ public class LibraryEventsService {
     private LibraryEventsRepository libraryEventsRepository;
     @Autowired
     ObjectMapper objectMapper;
-    public void processLibraryEvent(ConsumerRecord<Integer,String> consumerRecord) throws JsonProcessingException {
+    public void processLibraryEvent(ConsumerRecord<Integer,String> consumerRecord) throws JsonProcessingException, IllegalAccessException {
         LibraryEvent libraryEvent = objectMapper.readValue(consumerRecord.value(), LibraryEvent.class);
         log.info("ObjectMapper : {} ", libraryEvent);
         switch (libraryEvent.getLibraryEventType()){
@@ -25,11 +27,26 @@ public class LibraryEventsService {
                 save(libraryEvent);
                 break;
             case UPDATE:
-                //UPDATE operation
+                //validate libraryEvent
+                validate(libraryEvent);
+                //save
+                save(libraryEvent);
                 break;
             default:
                 log.info("Invalid Library event type");
         }
+    }
+
+    private void validate(LibraryEvent libraryEvent) throws IllegalAccessException {
+        //for update id shouldn't be null!
+        if(libraryEvent.getLibraryEventId()==null){
+            throw new IllegalAccessException("Library event id is missing");
+        }
+        Optional<LibraryEvent> libraryEventOptional = libraryEventsRepository.findById(libraryEvent.getLibraryEventId());
+        if(!libraryEventOptional.isPresent()){
+            throw new IllegalAccessException("Not a valid library event");
+        }
+        log.info("Validation if successful for the library event : {} ",libraryEventOptional.get());
     }
 
     private void save(LibraryEvent libraryEvent) {
