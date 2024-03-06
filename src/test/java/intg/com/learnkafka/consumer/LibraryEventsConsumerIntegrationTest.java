@@ -1,7 +1,10 @@
 package com.learnkafka.consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnkafka.entity.Book;
 import com.learnkafka.entity.LibraryEvent;
+import com.learnkafka.entity.LibraryEventType;
 import com.learnkafka.jpa.LibraryEventsRepository;
 import com.learnkafka.service.LibraryEventsService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -48,6 +51,10 @@ public class LibraryEventsConsumerIntegrationTest {
 
     @Autowired
     LibraryEventsRepository libraryEventsRepository;
+
+    @Autowired
+    ObjectMapper objectMapper;
+
     @BeforeEach
     void setUp(){
         for(MessageListenerContainer messageListenerContainer : endpointRegistry.getListenerContainers()){
@@ -77,6 +84,37 @@ public class LibraryEventsConsumerIntegrationTest {
             assert libraryEvent.getLibraryEventId() != null;
             assertEquals(456,libraryEvent.getBook().getBookId());
         });
+    }
+
+    @Test
+    void publishUpdateNewLibraryEvent() throws JsonProcessingException, ExecutionException, InterruptedException, IllegalAccessException {
+        //given
+        String json = "{ \"libraryEventId\": 1,\"libraryEventType\": \"NEW\", \"book\": { \"bookId\":456, \"bookName\": \"Kafka Using Spring Boot\", \"bookAuthor\": \"Dilip\" } } ";
+        //save the new library
+        LibraryEvent libraryEvent = objectMapper.readValue(json, LibraryEvent.class);
+        libraryEvent.getBook().setLibraryEvent(libraryEvent);
+        libraryEventsRepository.save(libraryEvent);
+
+        //publish the update LIBRARY EVENT
+        Book updatedBook= Book.builder()
+                .bookId(456)
+                .bookName("Peps")
+                .bookAuthor("Pepsiandr@")
+                .build();
+        libraryEvent.setLibraryEventType( LibraryEventType.UPDATE);
+        libraryEvent.setBook(updatedBook);
+        String updatedJson=objectMapper.writeValueAsString(libraryEvent);
+        kafkaTemplate.sendDefault(libraryEvent.getLibraryEventId(),updatedJson).get();
+        //when
+        CountDownLatch latch = new CountDownLatch(1);
+        latch.await(3, TimeUnit.SECONDS);
+        //then
+
+        verify(libraryEventConsumerSpy,times(1)).onMessage(isA(ConsumerRecord.class));
+        verify(libraryEventsServiceSpy,times(1)).processLibraryEvent(isA(ConsumerRecord.class));
+        LibraryEvent persistedLibraryEvent = libraryEventsRepository.findById(libraryEvent.getLibraryEventId()).get();
+        assertEquals("Peps",persistedLibraryEvent.getBook().getBookName());
+        assertEquals("Pepsiandr@",persistedLibraryEvent.getBook().getBookAuthor());
     }
 
 }
